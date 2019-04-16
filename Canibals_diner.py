@@ -1,65 +1,95 @@
 from threading import Thread, Lock, Event
-import time, random
+import time, logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 mutex = Lock()
 
-caldron = []  #4 o caldeirao esta vazio e 0 esta cheio
+caldron = 5  
 
-canibalTimeMin = 1
-canibalTimeMax = 3
-cookerTimeMin = 3
-cookerTimeMax = 12
+canibalServing = 1
+canibalEating = 3
+cookerCooking = 5
 
-class Canibal:
-    CanibalEvent = Event()
+CanibalEvent = Event()  #usado de threading
+CookerEvent = Event()
 
-    def __int__(self, name):
+
+class Canibal(object):
+
+    def __init__(self, name):
         self.name = name
-
+        workingThread = Thread()
+        self.run()
+        workingThread.start()
+    
+    def run(self):
+        self.serving()
+        
     def serving(self):
         global caldron
-        self.CanibalEvent.clear()
-        caldron += 1
-        print('The canibal is serving the food')
+        CanibalEvent.clear()
+        
+        mutex.acquire()
+        if caldron == 0:
+            logging.debug('Waking up cooker')
+            CookerEvent.set()   #wake cooker
 
-        randomServingTime = random.randrange(canibalTimeMin, canibalTimeMin+1)
-        time.sleep(randomServingTime)
+        else:
+            caldron -= 1
+            logging.debug('{} is serving the food'.format(self.name))
+            time.sleep(canibalServing)
+            mutex.release()
+            self.eating()
+            
 
     def eating(self):
-        self.CanibalEvent.clear()
+        global porcoes
+        CanibalEvent.clear()
+        print('{} is eating'.format(self.name))
+        time.sleep(canibalEating)
 
-        print('The canibal is eating')
+class Cooker(object):
 
-        randomEatingTime = random.randrange(canibalTimeMax, canibalTimeMax+1)
-        time.sleep(randomEatingTime)
-
-    def sleep(self):
-        self.CanibalEvent.wait()
-
-
-class Cooker:
-    CookerCookingEvent = Event()    #usado de threading
-
-    def sleep(self):
-        self.CookerCookingEvent.wait()
-
-    def wakeUp(self):
-        self.CookerCookingEvent.set()
-
+    def __init__(self):
+        workingThread = Thread()
+        self.run()
+        workingThread.start()
+    
+    def run(self):
+        if caldron == 0:
+            self.cooking()
+        
     def cooking(self):
-        #cooker busy
-        self.CookerCookingEvent.clear()
+        CookerEvent.clear() #cooker busy
 
-        print ('The diner is being cooked')
+        logging.debug('The diner is being cooked')
+    
+        caldron = 5
+        time.sleep(cookerCooking)
 
-        randomCookingTime = random.randrange(cookerTimeMin, cookerTimeMax+1)
-        time.sleep(randomCookingTime)
+        logging.debug('the diner is ready')
+        logging.debug('waking canibals')
 
+        CanibalEvent.set()
 
+  
 if __name__ == '__main__':
-    canibals = []
-    canibals.append(Canibal('Canibal1'))
-    canibals.append(Canibal('Canibal2'))
-    canibals.append(Canibal('Canibal3'))
+    
+    porcoes1 = 0 
+    porcoes2 = 0
+    porcoes3 = 0
+    t_end = time.time() + 60 * 2        #run for 120 seconds
+    while time.time() < t_end:
+        canibals = []
+        canibals.append(Canibal('Canibal1'))
+        porcoes1+=1
+        canibals.append(Canibal('Canibal2'))
+        porcoes2+=1
+        canibals.append(Canibal('Canibal3'))
+        porcoes3+=1
+        cooker = Cooker()
 
-    cooker = Cooker()
+    print('Canibal1 comeu %i' % porcoes1)
+    print('Canibal2 comeu %i' % porcoes2)
+    print('Canibal3 comeu %i' % porcoes3)
