@@ -21,75 +21,75 @@ class Canibal(object):
         self.name = name
         workingThread = Thread()
         self.run()
+        self.porcao = 0
         workingThread.start()
-    
+         
     def run(self):
-        self.serving()
+        while True:
+        	self.serving()
         
     def serving(self):
         global caldron
-        CanibalEvent.clear()
         
         mutex.acquire()
         if caldron == 0:
-            logging.debug('Waking up cooker')
-            CookerEvent.set()   #wake cooker
-
+        	mutex.release()
+        	logging.debug('Waking up cooker')
+        	CookerEvent.set()   
+        	CanibalEvent.clear()
+        	CanibalEvent.wait()
         else:
             caldron -= 1
             logging.debug('{} is serving the food'.format(self.name))
             time.sleep(canibalServing)
             mutex.release()
             self.eating()
-            
 
     def eating(self):
-        global porcoes
-        CanibalEvent.clear()
+        self.porcao += 1
         print('{} is eating'.format(self.name))
         time.sleep(canibalEating)
 
 class Cooker(object):
 
     def __init__(self):
-        workingThread = Thread()
-        self.run()
-        workingThread.start()
+    	workingThread = Thread()
+    	self.run()
+    	workingThread.start()
     
     def run(self):
-        if caldron == 0:
-            self.cooking()
+    	self.cooking()
         
     def cooking(self):
-        CookerEvent.clear() #cooker busy
+    	global CookerEvent
+		global CanibalEvent
+	
+			logging.debug('The diner is being cooked')
+   		mutex.acquire()
 
-        logging.debug('The diner is being cooked')
-    
-        caldron = 5
-        time.sleep(cookerCooking)
+    	caldron = 5
+    	mutex.release()
+    	time.sleep(cookerCooking)
 
-        logging.debug('the diner is ready')
-        logging.debug('waking canibals')
+    	logging.debug('the diner is ready')
+    	logging.debug('waking canibals')
 
-        CanibalEvent.set()
+    	CanibalEvent.set()
+
+    	CookerEvent.clear() 
+    	CookerEvent.wait()
 
   
 if __name__ == '__main__':
     
-    porcoes1 = 0 
-    porcoes2 = 0
-    porcoes3 = 0
-    t_end = time.time() + 60 * 2        #run for 120 seconds
-    while time.time() < t_end:
-        canibals = []
-        canibals.append(Canibal('Canibal1'))
-        porcoes1+=1
-        canibals.append(Canibal('Canibal2'))
-        porcoes2+=1
-        canibals.append(Canibal('Canibal3'))
-        porcoes3+=1
-        cooker = Cooker()
+    canibals = []
+    canibals.append(Canibal('Canibal1'))
+        #porcoes1+=1
+    canibals.append(Canibal('Canibal2'))
+        #porcoes2+=1
+    canibals.append(Canibal('Canibal3'))
+        #porcoes3+=1
+    cooker = Cooker()
 
-    print('Canibal1 comeu %i' % porcoes1)
-    print('Canibal2 comeu %i' % porcoes2)
-    print('Canibal3 comeu %i' % porcoes3)
+    for canibal in canibals:
+    	print('canibal ate {}'.format(canibal.porcao))
