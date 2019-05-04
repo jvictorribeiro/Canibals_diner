@@ -1,96 +1,136 @@
-from threading import Thread, Lock, Event
-import time, logging
+import logging
+import time
+import datetime
+from threading import Thread, Lock, Event, enumerate
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)  #mostrar msg das threads
 
-mutex = Lock()
+mutex = Lock()      # trava para garantir exclusao mutua
 
-caldron = 5  
+cauldron = 5        # variavel compartilhada entre os canibais e o cooker
 
-canibalServing = 1
+canibalServing = 1      # intervalos definidos no trab
 canibalEating = 3
 cookerCooking = 5
 
-CanibalEvent = Event()  #usado de threading
-CookerEvent = Event()
-
+canibals = []
 
 class Canibal(object):
 
     def __init__(self, name):
         self.name = name
-        workingThread = Thread()
-        self.run()
+        self.meal = 0
+        self.sleeping = False
+        workingThread = Thread(target=self.run)
+        workingThread.daemon = True  # usar threads como daemon sempre q possivel para evitar que alguma thread fique rodando
         workingThread.start()
-    # self.porcao = 0
-         
+
     def run(self):
-    
-        self.serving()
-        
+        #logging.debug("I'm the {}".format(self.name))
+        #t_end = time.time() + 60 * 2
+        # while True and time.time() < t_end:
+        global timeIni
+        while True and (datetime.datetime.today() - timeIni).seconds < 120:     # run for 120 seconds
+            self.serving()
+            self.eating()
+        CanibalEvent.set()
+        CookerEvent.set()
+
     def serving(self):
-        global caldron
-        global CanibalEvent
-        global CookerEvent
-        
-        #while True:
-        mutex.acquire()
-        if caldron == 0:
-            logging.debug('Waking up cooker')
-            CookerEvent.set()
-            mutex.release()   
-            CanibalEvent.clear()
-            CanibalEvent.wait()
+        global cauldron
+        global canibals
+
+        if cauldron == 0:
+            sleepingCannibals = 0       #verifica se o caldeirao ta vazio e apos o ultimo canibal dormir, acorda cozinheiro, isso garante q todos os canibais estejam dormindo
+            for canibal in canibals:
+                if (canibal.sleeping):
+                    sleepingCannibals += 1
+            if not CookerEvent.is_set() and sleepingCannibals == 2: # is_set retorna verdadeiro somente se a flag interna for V
+                logging.debug('Waking up the cooker!')
+                CookerEvent.set()
+            self.sleep()
+
         else:
-            caldron -= 1
+            mutex.acquire()
             logging.debug('{} is serving the food'.format(self.name))
+            cauldron -= 1
             time.sleep(canibalServing)
             mutex.release()
-            self.eating()
 
     def eating(self):
-        print('{} is eating'.format(self.name))
+        logging.debug('{} is eating'.format(self.name))
+        self.meal += 1
         time.sleep(canibalEating)
-#       porcao += 1
+
+    def wakeUp(self):
+        logging.debug('{} woke up'.format(self.name))
+        self.sleeping = False
+        CanibalEvent.set()
+
+    def sleep(self):
+        self.sleeping = True
+        logging.debug('{} went to sleep'.format(self.name))
+        CanibalEvent.clear()
+        CanibalEvent.wait()
+
 
 class Cooker(object):
-    def __init__(self):
-        workingThread = Thread()
-        self.run()
-        workingThread.start()
-    
+    def __init__(self, name):
+        self.name = name
+        workingThread2 = Thread(target=self.run)
+        workingThread2.daemon = True
+        workingThread2.start()
+
     def run(self):
-        self.cooking()
-        
+        CookerEvent.wait()
+        #logging.debug('I'm the {}'.format(self.name))
+        # t_end = time.time() + 60 * 2
+        #while True and time.time() < t_end:
+        while True and (datetime.datetime.today() - timeIni).seconds < 120:
+            self.cooking()
+        CanibalEvent.set()
+        CookerEvent.set()
+
     def cooking(self):
-        global caldron
-        global CookerEvent
-        global CanibalEvent
-
-        logging.debug('The diner is being cooked')
         mutex.acquire()
-
-        caldron = 5
-        mutex.release()
+        global cauldron
+        logging.debug('The diner is being cooked')
+        cauldron = 5
         time.sleep(cookerCooking)
-
         logging.debug('the diner is ready')
         logging.debug('waking canibals')
+        mutex.release()
+        self.sleep()
+
+    #def wakeUp(self):
+    #    logging.debug('{} woke up'.format(self.name))
+     #   CookerEvent.set()
+
+    def sleep(self):
+        global canibals
+        logging.debug('{} went to sleep'.format(self.name))
+        for canibal in canibals:
+            canibal.wakeUp()
         CanibalEvent.set()
         CookerEvent.clear()
         CookerEvent.wait()
 
-  
-if __name__ == '__main__':
-    
-    t_end = time.time() + 60 * 2        #run for 120 seconds
-    while time.time() < t_end: 
-        canibals = []
-        canibals.append(Canibal('Canibal1'))
-        canibals.append(Canibal('Canibal2'))
-        canibals.append(Canibal('Canibal3'))
 
-    cooker = Cooker()
+'''uso de event objects, uma thread sinaliza um evento e a outra espera por ele'''
+CanibalEvent = Event()  # usado de threading
+CookerEvent = Event()
+
+if __name__ == '__main__':
+
+    timeIni = datetime.datetime.today()
+
+    for i in range(3):
+        canibals.append(Canibal(name='Canibal {}'.format(i+1)))
+    cooker = Cooker(name='Cooker')
+
+    for i in enumerate():       #enumerate para saber qual a posicao do item atual no for
+        if i != enumerate()[0]:
+           i.join()     #join para fzr uma thread esperar q a outra termine
 
     for canibal in canibals:
-    	print('canibal ate {}'.format(canibal.porcao))
+        logging.debug('canibal {} ate {}'.format(canibal.name, canibal.meal))
